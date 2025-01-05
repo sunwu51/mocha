@@ -1,0 +1,6 @@
+{
+  "type": "module",
+  "dependencies": {
+    "sync-request": "^6.1.0"
+  }
+}

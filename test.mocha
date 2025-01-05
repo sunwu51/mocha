@@ -1,0 +1,199 @@
+// node main.js test.mocha
+
+// 基础语句:
+// 1 VarStatement
+var a = 1;
+var b = 2;
+var c = a + b * b - a;
+var d = c++;
+var e = ++c;
+
+print(a, b, c, d, e);
+
+// 2 ReturnStatement
+var add = function(a, b) {
+    return a + b;
+};
+
+print(add(1, 2));
+
+
+// 3 BlockStatement
+{
+    var a = 100;
+    print(a);
+}
+print(a);
+
+// 4 ExpressionStatement 1+ 2*3/4 - 4 = -1.5
+print(a + b * 3 / 4 - d);
+
+// 5 IfStatement
+if (a > e) {
+    print("a > e");
+} else {
+    print("a <= e");
+    if (a > b) {
+        print("a > b");
+    } else {
+        print("a <= b");
+    }
+}
+
+// 6 ForStatement ContinueStatement BreakStatement
+for (var i = 0; i < 10; i++) {
+    // 不打印5
+    if (i == 5) {
+        continue;
+    }
+    // 不打印8 9
+    if (i == 8) {
+        break;
+    }
+    print(i);
+}
+
+// 7 ClassStatement
+class Person {
+    age = 18;
+    constructor = function(name, age) {
+        super();
+        this.name = name;
+        if (age) {
+            this.age = age;
+        }
+    }
+    sayName = function() {
+        print(this.name + "," + this.age);
+    }
+}
+
+var tom = new Person("Tom", 30);
+var lily = new Person("Lily"); 
+tom.sayName();
+lily.sayName();
+
+// 8 ThrowStatement TryCatchStatement
+var add = function(a, b) {
+    if (a.type == "number" && b.type == "number") {
+        return a + b;
+    } else {
+        throw new Error("a or b is not a number");
+    }
+};
+function() {
+    try {
+        print("1+1=", add(1, 1));
+        print("1+a=", add(1, "a"));
+        print("2+2=", add(2, 2));
+    } catch(e) {
+        print("error:", e);
+    }
+}();
+
+// 面向对象的继承与多态
+class Animal {
+    constructor = function(name) {
+        super();
+        this.name = name;
+    }
+    sayName = function() {
+        print("My name is " + this.name);
+    }
+}
+class Dog extends Animal {
+    constructor = function(name) {
+        super(name);
+    }
+    sayName = function() {
+        print("My name is " + this.name + ", I'm a dog");
+    }
+}
+
+var tom = new Animal("Tom");
+var lily = new Dog("Lily");
+
+tom.sayName();
+lily.sayName();
+
+// 类似js的处理逻辑，B.c会调用A.b，而A.b会调用this.a()，这里的this指向B对象，所以最后打印B.a
+class A {
+  age = 1;
+  a=function() {
+    print("A.a");
+  }
+  b=function() {
+    this.a();
+  }
+}
+
+class B extends A{
+  a=function() {
+    print("B.a");
+  }
+  b=function() {
+    print("B.b");
+  }
+  c=function() {
+    super.b();
+  }
+}
+
+new B().c();
+// 字符串和数组基础能力
+var str = "aBc";
+print(str.toLowerCase());
+print(str.toUpperCase());
+print(str.substring(1, 2));
+print(str.charAt(1), str[1]);
+print(str.indexOf("B"));
+print(str.startsWith("a"));
+print(str.endsWith("a"));
+print(str.replaceAll("B", "0.0"));
+print(" 123 ".trimLeft().length());
+print(" 123 ".trimRight().length());
+print(" 123 ".trim().length());
+print(" 123 ".trim().toNumber() % 100 == 23);
+
+print("array");
+var arr = "a,b,c".split(",");
+var arr2 = ["d", "e", "f"];
+print(arr.length());
+print(arr[1]);
+for (var i = 0; i < arr.length(); i++) {
+    arr2.push(arr[i]);
+}
+print(arr2);
+arr2.push("end");
+arr2.unshift("start");
+print(arr2);
+
+print(arr2.pop(), arr2.pop());
+print(arr2.shift(), arr2.shift());
+print(arr2);
+print(arr2.join(";"));
+
+// 灵活对象
+var obj = {name: "Tom"};
+obj.age = 100;
+obj.parent = {name: "Frank"};
+obj.parent.age = 200;
+print(obj);
+obj.parent.age++;
+print(obj.parent);
+
+
+// util中引入的基础库
+// Math
+print(Math.abs(-1) + Math.ceil(1.1) + Math.floor(1.1));
+print(Math.random());
+
+// File
+print(File.readFile("./package.json"));
+File.writeFile("./test.txt", "Hello World\n");
+File.appendFile("./test.txt", "FooBar\n");
+
+// Http
+var content = Http.request("GET", "https://www.baidu.com", {});
+print(content.status, content.body);
+
