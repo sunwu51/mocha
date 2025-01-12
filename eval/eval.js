@@ -362,10 +362,10 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
                 if (ctx.get(infixOperatorAstNode.left.toString())  == undefined) {
                     throw new  RuntimeError("Undefined variable " + infixOperatorAstNode.left.toString(), infixOperatorAstNode.left.token);
                 }
-                ctx.set(infixOperatorAstNode.left.toString(), r);
                 if (r instanceof NumberElement) {
                     return new NumberElement(r.value);
                 }
+                ctx.set(infixOperatorAstNode.left.toString(), r);
                 return  r;
             }
             // 点、index运算符，就不要求值了，直接赋值
@@ -373,10 +373,10 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
                 if (infixOperatorAstNode.left.op.type === LEX.POINT) {
                     var lhost = evalExpression(infixOperatorAstNode.left.left, ctx);
                     assert(lhost instanceof Map || lhost instanceof Element, "Point should used on Element", infixOperatorAstNode.left.op);
-                    lhost.set(infixOperatorAstNode.left.right.toString(), r);
                     if (r instanceof NumberElement) {
-                        return new NumberElement(r.value);
+                        r = new NumberElement(r.value);
                     }
+                    lhost.set(infixOperatorAstNode.left.right.toString(), r);
                     return r;
                 } else if (infixOperatorAstNode.left.op.type === LEX.LBRACKET) {
                     var lhost = evalExpression(infixOperatorAstNode.left.left, ctx);
@@ -384,10 +384,10 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
                     assert(infixOperatorAstNode.left.right instanceof IndexAstNode, "[index] should be IndexAstNode", infixOperatorAstNode.left.op);
                     var index = evalExpression(infixOperatorAstNode.left.right.index, ctx);
                     assert(index instanceof NumberElement || index instanceof StringElement, "[index] should be Number or String", infixOperatorAstNode.left.op);
-                    lhost.set(index.toNative(), r);
                     if (r instanceof NumberElement) {
-                        return new NumberElement(r.value);
+                        r = new NumberElement(r.value);
                     }
+                    lhost.set(index.toNative(), r);
                     return r;
                 }
             }
@@ -436,7 +436,11 @@ export function evalStatement(statement, ctx) {
         return evalExpression(statement.expression, ctx);
     } else if (statement instanceof VarStatement) {
         var name = statement.nameIdentifierAstNode.toString();
-        ctx.setCur(name, evalExpression(statement.valueAstNode, ctx));
+        var value = evalExpression(statement.valueAstNode, ctx);
+        if (value instanceof NumberElement) {
+            value = new NumberElement(value.value);
+        }
+        ctx.setCur(name, value);
     } else if (statement instanceof BlockStatement) {
         return evalStatements(statement.statements, new Context(ctx));
     } else if (statement instanceof ReturnStatement) {
