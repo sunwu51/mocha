@@ -2,7 +2,6 @@ import * as LEX  from "../lexer/lexer.js";
 import { ParseError, RuntimeError } from "../common/error.js";
 import {VarStatement, ReturnStatement, ThrowStatement, BlockStatement, ExpressionStatement, TryCatchStatement, precedenceMap, IfStatement, ForStatement, BreakStatement, ContinueStatement, EmptyStatement, ClassStatement, prefixPrecedenceMap, postfixPrecedenceMap, MapObjectDeclarationAstNode, BooleanAstNode} from './model.js'
 import {AstNode, NullAstNode, IndexAstNode, ArrayDeclarationAstNode, FunctionArgsAstNode, IdentifierAstNode, StringAstNode, NumberAstNode, InfixOperatorAstNode, PrefixOperatorAstNode, PostfixOperatorAstNode, GroupAstNode, FunctionDeclarationAstNode, FunctionCallAstNode, NewAstNode} from './model.js'
-import { threadId } from "worker_threads";
 
 export class Parser {
     constructor(tokens) {

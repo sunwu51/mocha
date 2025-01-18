@@ -1,3 +1,4 @@
+import { ErrorElement } from "../eval/model.js";
 export class MochaError extends Error {
     constructor(msg) {
         super(msg);
@@ -28,12 +29,8 @@ export class ParseError extends MochaError {
 }
 
 export class RuntimeError extends MochaError {
-    constructor(msg, token) {
-        super(msg)
-        this.token = token
-    }
-    toString() {
-        var token = this.token;
-        return `${this.message}${this.token ? ` at line ${token.line}:${token.pos}, error near '${this.token.value}'`: ""}`
+    constructor(msg, position, element) {
+        super(msg);
+        this.element = element ? element: new ErrorElement(msg, [{position}]);
     }
 }

@@ -1,8 +1,7 @@
 import * as LEX from '../lexer/lexer.js'
 import { Parser } from '../parser/parser.js';
 import { evalStatements } from './eval.js';
-import { Context } from './model.js';
-import { buildIn } from '../sdk/util.js';
+import { getBuildInCtx } from '../sdk/util.js';
 
 // var tokens = LEX.lex(`var a = 1; var b = 1; print("outer a=" + a + ", b=" + b ); {var a = 2; b = 2; print("inner a=" + a + ", b=" + b );} print("outer a=" + a + ", b=" + b );`);
 // var tokens = LEX.lex(`var a = 100; var b =10; if (a > b) {print("a > b");} else {print("a <= b");}`);
@@ -61,17 +60,17 @@ import { buildIn } from '../sdk/util.js';
 function test1() {
     console.log("test1")
     var tokens = LEX.lex(`var a = 1; var b = 1; print("outer a=" + a + ", b=" + b ); {var a = 2; b = 2; print("inner a=" + a + ", b=" + b );} print("outer a=" + a + ", b=" + b );`);
-    evalStatements(new Parser(tokens).parse(), new Context(), false);;
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx());;
     var tokens = LEX.lex(`var a = 100; var b =10; if (a > b) {print("a > b");} else {print("a <= b");}`);
-    evalStatements(new Parser(tokens).parse(), new Context(),  false);;
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx());;
     var tokens = LEX.lex(`for(var i = 0; i < 10; i++) { if (i == 3) {continue;} if (i==6) {break;} print(i); }`);
-    evalStatements(new Parser(tokens).parse(), new Context(),  false);;
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx());;
     var tokens = LEX.lex(`var add = function(a, b) { if (a > b) { return a + b; } return 111;};print(add(1, 2), add(2,1));`);
-    evalStatements(new Parser(tokens).parse(), new Context(),  false);;
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx());;
     var tokens = LEX.lex(`var fib = function(n) {if (n<2) { return n; } else {return  fib(n - 1) + fib(n - 2);} }; print(fib(10));`)
-    evalStatements(new Parser(tokens).parse(), new Context(),  false);;
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx());;
     var tokens = LEX.lex(`var fib = function(n) {if (n<2) { return n; } else {return  fib(n - 1) + fib(n - 2);} }; var fibFactory = function() { return fib;};  print(fibFactory()(10))`);
-    evalStatements(new Parser(tokens).parse(), new Context(),  false);;
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx());;
 }
 function test2() {
     console.log("test2")
@@ -91,7 +90,7 @@ function test2() {
     for (var i = 0; i < arr.length(); i++) {
         if (i % 2 == 1) { print("arr[" + i + "]=", arr[i]);}
     }`)
-    evalStatements(new Parser(tokens).parse(), new Context(),  false);
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx(),  false);
 }
 
 function test3() {
@@ -130,7 +129,7 @@ function test3() {
         print(p.type);
         print(new Student("zhangsan", 18, 100).type);
     `);
-    evalStatements(new Parser(tokens).parse(), new Context(),  false);
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx(),  false);
 }
 function test4() {
     console.log("test4")
@@ -139,7 +138,7 @@ function test4() {
         print(obj.name.type);
         print(obj.type);
     `)
-    evalStatements(new Parser(tokens).parse(), new Context(),  false);
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx(),  false);
     var tokens = LEX.lex(`
         var a = "1,2, 3  , a, b , ";
         print(a.split(","));
@@ -151,7 +150,7 @@ function test4() {
         print(a.indexOf("3"));
         print(a.substring(0, 3).toNumber() + 100 == 223);
     `);
-    evalStatements(new Parser(tokens).parse(), new Context(),  false);
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx(),  false);
     var tokens = LEX.lex(`
         // 你好
         var map = {};
@@ -166,16 +165,16 @@ function test4() {
         print(newMap.c.b);
         `
     )
-    evalStatements(new Parser(tokens).parse(), new Context(),  false);
+    evalStatements(new Parser(tokens).parse(), getBuildInCtx(),  false);
 }
-var tokens = LEX.lex(`
-print("123"[1]);
-    `)
-var statements = new Parser(tokens).parse();
-// statements.forEach(s=>console.log(s.toString()))
-var res = evalStatements(statements, new Context(),  false);
+// var tokens = LEX.lex(`
+// print("123"[1]);
+//     `)
+// var statements = new Parser(tokens).parse();
+// // statements.forEach(s=>console.log(s.toString()))
+// var res = evalStatements(statements, getBuildInCtx(),  false);
 // console.log(res);
-// test1();
-// test2();
-// test3();
-// test4();
+test1();
+test2();
+test3();
+test4();

@@ -1,4 +1,4 @@
-import { evalExpression, evalStatement, throwToParent } from "./eval.js";
+import { evalBlockStatement } from "./eval.js";
 
 export class Element {
     constructor(type) {
@@ -97,7 +97,7 @@ export class StringElement extends Element {
     constructor(value) {
         super('string');
         this.value = value;
-        this.$$pro$$.set("$$pro$$", stringProto);
+        this.$$pro$$ = stringProto;
     }
     toNative() {
         return this.value;
@@ -119,7 +119,23 @@ export class NullElement extends Element {
     }
 }
 
+export class ArrayElement extends Element {
+    // array: Element[]
+    constructor(array) {
+        super('array');
+        this.array = array;
+        this.$$pro$$ = arrayProto;
+    }
+    toString() {
+        return `[${this.array.map(v => v.toString()).join(', ')}]`;
+    }
+    toNative() {
+        return this.array.map(e =>e.toNative());
+    }
+}
+
 export class FunctionElement extends Element {
+    // params: string[], body: BlockStatement, closureCtx: Context
     constructor(params, body, closureCtx) {
         super('function');
         this.params = params;
@@ -132,78 +148,73 @@ export class FunctionElement extends Element {
         return `FUNCTION`
     }
 
-    call(name, args, _this, _super, ctx) {
+    // name: string, args: Element[], _this: Element, _super: Element, exp: 打印异常堆栈相关
+    call(name, args, _this, _super, exp) {
         // 允许长度不匹配和js一样灵活
         // if (args.length != this.params.length) {
         //     throw new RuntimeError(`function ${name+" "}call error: args count not match`);
         // }
         var newCtx = new Context(this.closureCtx);
         if (_this) {
-            newCtx.setCur("this", _this);
+            newCtx.set("this", _this);
         }
         if (_super) {
-            newCtx.setCur("super", _super);
+            newCtx.set("super", _super);
         }
-        newCtx.funCtx.info = {name, id: ++functionId};
+        newCtx.funCtx.name = name;
         this.params.forEach((param, index) => {
-            newCtx.setCur(param, args[index] ? args[index] : nil);
+            newCtx.set(param, args[index] ? args[index] : nil);
         });
-        evalStatement(this.body, newCtx);
-        if (newCtx.throwElement) {
-            ctx.throwElement = newCtx.throwElement;
+        try {
+            evalBlockStatement(this.body, newCtx);
+        } catch (e) {
+            if (e instanceof RuntimeError) {
+                if (e.element instanceof ErrorElement) {
+                    e.element.updateFunctionName(name);
+                    e.element.pushStack({position: `${exp.token.line}:${exp.token.pos}`})
+                }
+            }
+            throw e;
         }
         return newCtx.funCtx.returnElement =  newCtx.funCtx.returnElement ?  newCtx.funCtx.returnElement : nil;
     }
 }
-
-export class NativeFunctionElement extends FunctionElement {
-    constructor(jsFunction, params) {
-        super(params, null, null)
-        this.jsFunction = jsFunction;
+export class ErrorElement extends Element {
+    constructor(msg, stack = []) {
+        super('error');
+        this.set("msg", jsObjectToElement(msg));
+        this.set("stack", jsObjectToElement(stack));
     }
-    // args : NumberElement / BooleanElement / StringElement / NullElement
-    call(name, args, _this, _super, ctx) {
-        // 调用栈上有异常，当前函数跳过执行
-        if (ctx.throwElement) {
-            return nil;
+    pushStack(info) {
+        this.get("stack").array.push(jsObjectToElement(info));
+    }
+    updateFunctionName(name) {
+        var last = this.get("stack").array[this.get("stack").array.length - 1];
+        if (last && last.get("functionName") == nil) {
+            last.set("functionName", new StringElement(name));
         }
-        var nativeArgs = args.map(e => e.toNative())
-        var res = this.jsFunction.apply(_this, nativeArgs);
-        return res ? res : nil;
-    }
-}
-
-export class ArrayElement extends Element {
-    // value: Element[]
-    constructor(array) {
-        super('array');
-        this.array = array;
-        this.$$pro$$.set("$$pro$$", arrayProto)
-    }
-    toString() {
-        return `[${this.array.map(v => v.toString()).join(', ')}]`;
     }
     toNative() {
-        return this.array.map(e =>e.toNative());
+        return {
+            msg: this.get("msg") ? this.get("msg").toNative() : null,
+            stack: this.get("stack") ? this.get("stack").toNative() : null
+        }
     }
 }
 
-
-// 基础的类型信息，也是一种Object
 export class ProtoElement extends Element {
-    constructor(className, parent, props, ctx = new Context()) {
+    // className: string;
+    // parent: ProtoElement | null;
+    // methods: Map<String, Element>;
+    constructor(className, parent, methods) {
         super();
         this.className = className;
         if (parent != undefined) {  
             this.setPro("$$pro$$", parent.$$pro$$);
         }
-        if (props) {
-            props.forEach((v, k) => {
-                if (!v) {
-                    this.setPro(k.toString(), nil);
-                } else {
-                    this.setPro(k.toString(), evalExpression(v, ctx));
-                }
+        if (methods) {
+            methods.forEach((v, k) => {
+                this.setPro(k, v ? v : nil);
             })
         }
     }
@@ -211,84 +222,116 @@ export class ProtoElement extends Element {
         return "PROTOTYPE"
     }
 }
+export class NativeFunctionElement extends FunctionElement {
+    constructor(jsFunction, params) {
+        // body和ctx都不需要
+        super(params, null, null);
+        this.jsFunction = jsFunction;
+    }
+    // args : NumberElement / BooleanElement / StringElement / NullElement
+    call(name, args, _this, _super, ctx) {
+        try {
+            // 直接把参数转换成js对象，然后调用jsFunction
+            var nativeArgs = args.map(e => e.toNative());
+
+            // 注意这里的_this还是原Element，没有转换成js对象。因为像array的push操作需要修改的是_this的
+            var res = this.jsFunction.apply(_this, nativeArgs);
+
+            // 返回值也需要是element，道理与_this一样，转换会导致引用类型变化
+            return res ? res : nil;
+        } catch (e) {
+            throw new RuntimeError("Error calling native method " + name + ":" + e.message);
+        }
+    }
+}
+
+// null / true / false 只有一种，所以采用单例
+export const nil = new NullElement(),
+trueElement = new BooleanElement(true),
+falseElement = new BooleanElement(false);
+
+// 声明运行时的报错
+export class RuntimeError extends Error {
+    constructor(msg, position, element) {
+        super(msg);
+        this.element = element ? element: new ErrorElement(msg, [{position}]);
+    }
+}
 
 export class Context {
     constructor(parent) {
-        this.varibales = new Map();
-        this.funCtx = {info: parent ? parent.funCtx.info : undefined, returnElement: undefined};
+        this.variables = new Map();
+        this.funCtx = {name : undefined, returnElement: undefined};
+        // inFor主要是判断是否在for循环中，当出现break或continue的时候，设置对应的字段，并且从自己开始不断向上找到inFor=true，并将遍历路径上的上下文的对应字段都进行设置。
         this.forCtx = {inFor: false, break: false, continue: false};
         this.parent = parent;
-        this.throwElement = undefined;
     }
-    setReturnElement(element, info = this.funCtx.info) {
-        if (this.funCtx.info === info) {
-            this.funCtx.returnElement = element;
-            if (this.parent) this.parent.setReturnElement(element, info);
+    get(name) {
+        // 自己有这个变量，就返回这个变量的值
+        if (this.variables.has(name)) {
+            return this.variables.get(name);
+        }
+        // 自己没有，则从parent中不断向上查找
+        if (this.parent) {
+            return this.parent.get(name);
+        }
+        // 最后也没有，返回null
+        return null;
+    }
+    // 对应Varstatement
+    set(name, value) {
+        this.variables.set(name, value);
+    }
+    // 这个函数中可能又有多个块域，每个都需要设置返回值
+    setReturnElement(element) {
+        this.funCtx.returnElement = element;
+        if (!this.funCtx.name) {
+            if (this.parent) this.parent.setReturnElement(element);
+            else throw new RuntimeError("return outside function")
         }
     }
-
-    setBreak(info=this.funCtx.info) {
-        if (info != this.funCtx.info) {
-            throw new RuntimeError('break not in for');
-        }
-        this.forCtx.break = true;
-        if (this.forCtx.inFor) {
+    // 获取当前所在的函数名，throw的时候有用
+    getFunctionName() {
+        if (this.funCtx.name) return this.funCtx.name;
+        if (this.parent) return this.parent.getFunctionName();
+        return null;
+    }
+    // 更新变量，对应ASSIGN操作符
+    update(name, value) {
+        if (this.variables.has(name)) {
+            this.set(name, value);
             return;
         } else if (this.parent) {
-            this.parent.setBreak(info);
+            this.parent.update(name, value);
+            return;
+        }
+        // 没有声明就更新，直接报错
+        throw new RuntimeError(`Identifier ${name} is not defined`);
+    }
+    setBreak() {
+        this.forCtx.break = true;
+        if (this.forCtx.inFor) {
+            return; //找到最近的for就结束
+        } else if (this.parent) {
+            // 不能跨函数
+            if (this.funCtx.name) throw new RuntimeError(`break not in for`);
+            this.parent.setBreak();
         } else {
             throw new RuntimeError('break not in for');
         }
     }
-    setContinue(info=this.funCtx.info) {
-        if (info != this.funCtx.info) {
-            throw new RuntimeError('break not in for');
-        }
+    setContinue() {
         this.forCtx.continue = true;
         if (this.forCtx.inFor) {
-            return;
+            return; //找到最近的for就结束
         } else if (this.parent) {
+            if (this.funCtx.name) throw new RuntimeError(`continue not in for`);
             this.parent.setContinue();
         } else {
             throw new RuntimeError('continue not in for');
         }
     }
-    setCur(name, value) {
-        this.varibales.set(name, value);
-    }
-    set(name, value) {
-        if (!this.get(name)) {
-            // 不能直接赋值未声明变量
-            throw new RuntimeError('Cannot set value for undefined variable');
-        }
-        if (this.getCur(name)) {
-            this.setCur(name, value);
-        } else {
-            this.parent.set(name, value);
-        }
-    }
-    getCur(name) {
-        return this.varibales.get(name);
-    }
-    get(name) {
-        if (this.varibales.get(name) != undefined) {
-            return this.varibales.get(name);
-        }
-        // 有闭包环境，闭包优先级仅次于当前上下文
-        if (this.closureCtx && this.closureCtx.get(name)) {
-            return this.closureCtx.get(name);
-        } else if (this.parent) { 
-            return this.parent.get(name);
-        }
-        return null;
-    }
 }
-// 这三个都用一个常量即可
-export const nil = new NullElement(),
-trueElement = new BooleanElement(true),
-falseElement = new BooleanElement(false);
-
-let functionId = 0;
 
 const arrayProto = new ProtoElement();
 arrayProto.setPro("at", new NativeFunctionElement(function(index){ return this.array[index]; }));
@@ -316,6 +359,7 @@ stringProto.setPro("trimRight", new NativeFunctionElement(function(){ return new
 stringProto.setPro("toNumber", new NativeFunctionElement(function(){ return isNaN(this.value) ? new NumberElement(NaN) : new NumberElement(parseFloat(this.value)) }));
 
 function jsObjectToElement(obj) {
+    if (obj === null || obj === undefined) return nil;
     if (typeof obj === 'number') {
         return new NumberElement(obj);
     } else if (typeof obj === 'string') {

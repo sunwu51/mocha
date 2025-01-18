@@ -4,10 +4,12 @@ import { Parser } from './parser/parser.js';
 import { evalStatements } from './eval/eval.js';
 import { Context } from './eval/model.js';
 import { MochaError } from './common/error.js';
+import { getBuildInCtx } from './sdk/util.js';
 import readline from 'readline';
 
-function evaluate(input, ctx = new Context()) {
+function evaluate(input, ctx = getBuildInCtx()) {
     var tokens = lex(input);
+    // console.log(statements)
     var statements = new Parser(tokens).parse();
     // statements.forEach(statement => console.log(statement.toString()))
     return evalStatements(statements, ctx, false);
@@ -25,13 +27,13 @@ if (process.argv.length >= 3) {
         output: process.stdout
     });
 
-    const ctx = new Context();
+    const ctx = getBuildInCtx();
     function play() {
         // 单行输入
         rl.question('>> ', (answer) => {
             try {
                 var res = evaluate(answer, ctx);
-                console.log(res.toString());
+                console.log(res ? res.toString() : res);
             } catch (e) {
                 if (e instanceof MochaError) {
                     console.error(e.toString());

@@ -1,6 +1,7 @@
 {
   "type": "module",
   "dependencies": {
+    "deasync": "^0.1.30",
     "sync-request": "^6.1.0"
   }
 }
