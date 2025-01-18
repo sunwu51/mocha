@@ -178,7 +178,7 @@ export function lex(input) {
                     position++
                 }
                 if (start != position) {
-                    tokens.push(new Token(NUMBER, input.substring(start, position), line, position - curLineStart + 1))
+                    tokens.push(new Token(NUMBER, input.substring(start, position), line, start - curLineStart + 1))
                     break;
                 }
                 // 字母类型
@@ -188,8 +188,8 @@ export function lex(input) {
                         position++
                     } while (input[position] >= '0' && input[position] <= '9' || input[position] >= 'a' && input[position] <= 'z' || input[position] >= 'A' && input[position] <= 'Z' || input[position] == '_')
                     let value = input.substring(start, position)
-                    if (KEYWORDS.has(value)) tokens.push(new Token(KEYWORDS.get(value), value, line, position - curLineStart + 1))
-                    else tokens.push(new Token(IDENTIFIER, value, line, position - curLineStart + 1))
+                    if (KEYWORDS.has(value)) tokens.push(new Token(KEYWORDS.get(value), value, line, start - curLineStart + 1))
+                    else tokens.push(new Token(IDENTIFIER, value, line, start - curLineStart + 1))
                     break;
                 }
                 // 不认识的字符抛出异常
