@@ -16,6 +16,7 @@ export class Element {
         this.map.set(key, value);
     }
     get(key) {
+        if (this == nil) throw new RuntimeError("null point exception")
         if (key == "type") return new StringElement(this.type);
         if (this.map.get(key) != undefined) {
             return this.map.get(key);

@@ -262,55 +262,6 @@ function evalExpression(exp, ctx) {
             throw new RuntimeError(`${funcExpression.toString()} is not a function`,`${exp.token.line}:${exp.token.pos}`);
         }
     }
-    if (exp instanceof FunctionCallAstNode) {
-        var funcExpression = exp.funcExpression;
-        var funcElement = null,  _this = null, _super=null, fname = null;
-        // 去掉冗余的组
-        while (funcExpression instanceof GroupAstNode) {
-            funcExpression = funcExpression.exp;
-        }
-        if (funcExpression instanceof InfixOperatorAstNode) {
-            // xx.method
-            if ((funcExpression.op.type === LEX.POINT && funcExpression.right instanceof IdentifierAstNode) ||
-            (funcExpression.op.type === LEX.LBRACKET && funcExpression.right instanceof StringAstNode)) {
-                _this = evalExpression(funcExpression.left, ctx)
-                funcElement = _this.get(funcExpression.right.toString());
-                fname = funcExpression.right.toString();
-                // super比较特殊，调用super.xx的时候，this指向还是当前this而不是super
-                if (funcExpression.left.toString() === 'super') {
-                    var curClsPro = _this.$$pro$$.get("$$pro$$");
-                    var parentClsPro = curClsPro ? curClsPro.get("$$pro$$") : null;
-                    _super = new Element(); // 临时的
-                    _super.$$pro$$ = parentClsPro ? parentClsPro : new Map();
-                    _this = ctx.get("this");
-                } else {
-                    var curClsPro = _this.$$pro$$.get("$$pro$$");
-                    var parentClsPro = curClsPro ? curClsPro.get("$$pro$$") : null;
-                    _super = new Element(); // 临时的
-                    _super.$$pro$$ = parentClsPro ? parentClsPro : new Map();
-                }
-            }
-        }
-        if (!fname) {
-            if (funcExpression instanceof IdentifierAstNode) {
-                fname = funcExpression.toString();
-            } else {
-                fname = "uname";
-            }
-        }
-        if (!funcElement) {
-            funcElement = evalExpression(funcExpression, ctx);
-        }
-        if (funcElement instanceof FunctionElement) {
-            // newCtx.set("super", superEle);
-            return funcElement.call(fname, exp.args.map((arg) => evalExpression(arg, ctx)), _this, _super,  ctx);
-        } else if (funcExpression.right && funcExpression.right.toString() == "constructor") {
-            // 默认构造方法，啥也不做
-            return nil;
-        } else {
-            throw new RuntimeError(`${funcExpression.toString()} is not a function`, exp.token);
-        }
-    }
     // new对象
     else if (exp instanceof NewAstNode) {
         var className = exp.clsIdentifierAstNode.toString();
@@ -326,7 +277,6 @@ function evalExpression(exp, ctx) {
         var _super = new Element();
         _super.$$pro$$ = parentClsPro ? parentClsPro : new Map();
 
-
         // 4 运行构造方法，原型链一直往上找constructor构造方法，如果全都没有的话，就不执行任何操作
         if (clsElement.get("constructor") && clsElement.get("constructor") != nil) {
             if (!(clsElement.get("constructor") instanceof FunctionElement)) throw new RuntimeError(`${className}.constructor is not a function`); 
@@ -335,7 +285,6 @@ function evalExpression(exp, ctx) {
         }
         return _this;
     }
-    // .... 还有其他AstNode稍后再说，先来理解以上几种
     return nil;
 }
 // 前缀运算符节点求值 + - ! ~
