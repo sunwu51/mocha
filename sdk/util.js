@@ -3,16 +3,13 @@ import { RuntimeError } from "../common/error.js";
 
 var IS_NODE = typeof process !== 'undefined' && process.versions && process.versions.node;
 
-var fs = null, request = null, deasync = null;
-
+var fs = null;
 if (IS_NODE) {
     var init = async function() {
         fs  = (await import('fs')).default;
-        request = (await import('sync-request')).default;
-        deasync = (await import('deasync')).default;
     };
     await init();
-    console.log("init nodejs libs finished")
+    // console.log("init nodejs libs finished")
 }
 
 export const buildIn = new Map();
@@ -50,11 +47,14 @@ buildIn.set("Math", math);
 const time = new ProtoElement("Time");
 
 time.set('now', new NativeFunctionElement(function() { return new NumberElement(new Date().getTime());}));
-time.set('sleep', new NativeFunctionElement(function(ms) { if(deasync) { deasync.sleep(ms);  return nil} else {throw new RuntimeError("deasync is not supported in the browser environment.")}}));
+time.set('sleep', new NativeFunctionElement(async function(ms) { 
+    await new Promise((c) => setTimeout(()=>{c()}, ms));
+    return nil;
+}));
 
 buildIn.set("Time", time);
 
-const json = new ProtoElement("JSON");
+const json = new ProtoElement("Json");
 json.set("stringify", new NativeFunctionElement(function(obj, opt1, opt2) {
     return new StringElement(JSON.stringify(obj, opt1, opt2));
 }));
@@ -62,7 +62,7 @@ json.set("stringify", new NativeFunctionElement(function(obj, opt1, opt2) {
 json.set("parse", new NativeFunctionElement(function(str) {
     return jsObjectToElement(JSON.parse(str))
 }));
-buildIn.set("JSON", json);
+buildIn.set("Json", json);
 
 
 // File库
@@ -106,20 +106,21 @@ file.set("appendFile", new NativeFunctionElement(function(filename, content) {
     }
 }));
 
-buildIn.set('File', file);
+if (fs) {
+    buildIn.set('File', file);
+}
 
 // http
 const http = new ProtoElement('Http')
 
-http.set("request", new NativeFunctionElement(function(method, url, options){
+http.set("fetch", new NativeFunctionElement(async function(url, options){
     try {
-        if (request) {
-            var res = request(method, url, options);
-            var body = res.getBody().toString();
-            var status = res.statusCode;
-            return jsObjectToElement({body, status});
-        }
-        throw new RuntimeError("http request is not supported in the browser environment.");
+        var status = -1;
+        var text = await fetch(url, options).then(res => {
+            status = res.status;
+            return res.text()
+        });
+        return jsObjectToElement({body: text, status});
     } catch(e) {
         throw new RuntimeError("http request error " + e.message);
     }

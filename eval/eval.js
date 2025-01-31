@@ -6,12 +6,12 @@ import { Element, NumberElement, StringElement, BooleanElement, NullElement, Arr
 
 
 // 对statement[]求值，最终返回最后一个语句的求值结果
-export function evalStatements(statements, ctx) {
+export async function evalStatements(statements, ctx) {
     var res = nil;
     for (let statement of statements) {
         if (ctx.funCtx.returnElement || ctx.forCtx.break || ctx.forCtx.continue) break;
         try {
-            res = evalStatement(statement, ctx);
+            res = await evalStatement(statement, ctx);
         } catch(e) {
             if (e instanceof RuntimeError) {
                 if (e.stack[e.stack.length-1].position == "") {
@@ -33,36 +33,36 @@ export function evalStatements(statements, ctx) {
 }
 
 
-function evalStatement(statement, ctx) {
+async function evalStatement(statement, ctx) {
     if (statement instanceof ExpressionStatement) {
-        return evalExpression(statement.expression, ctx);
+        return await evalExpression(statement.expression, ctx);
     } else if (statement instanceof VarStatement) {
-        return evalVarStatement(statement, ctx);
+        return await evalVarStatement(statement, ctx);
     } else if (statement instanceof BlockStatement) {
-        return evalBlockStatement(statement, new Context(ctx));
+        return await evalBlockStatement(statement, new Context(ctx));
     } else if (statement instanceof ReturnStatement) {
-        ctx.setReturnElement(evalExpression(statement.valueAstNode, ctx));
+        ctx.setReturnElement(await evalExpression(statement.valueAstNode, ctx));
     } else if (statement instanceof IfStatement) {
-        var condRes = evalExpression(statement.conditionAstNode, ctx);
+        var condRes = await evalExpression(statement.conditionAstNode, ctx);
         if ((condRes instanceof NumberElement) && condRes.value == 0 && statement.elseBlockStatement) {
-            evalBlockStatement(statement.elseBlockStatement, new Context(ctx));
+            await evalBlockStatement(statement.elseBlockStatement, new Context(ctx));
         } else if (condRes == nil || condRes == falseElement) {
             if (statement.elseBlockStatement) {
-                evalBlockStatement(statement.elseBlockStatement, new Context(ctx));
+                await evalBlockStatement(statement.elseBlockStatement, new Context(ctx));
             }
         } else {
-            evalBlockStatement(statement.ifBlockStatement, new Context(ctx));
+            await evalBlockStatement(statement.ifBlockStatement, new Context(ctx));
         }
     } else if (statement instanceof ForStatement) {
         if (statement.initStatement) {
-            evalStatement(statement.initStatement, ctx);
+            await evalStatement(statement.initStatement, ctx);
         }
         while (true) {
             if (statement.conditionStatement) {
                 if (!(statement.conditionStatement instanceof ExpressionStatement)) {
                     throw new RuntimeError("Condition should be an ExpressionStatement", `${statement.token.line}:${statement.token.pos}`);
                 }
-                var condRes = evalExpression(statement.conditionStatement.expression, ctx);
+                var condRes = await evalExpression(statement.conditionStatement.expression, ctx);
                 if (condRes instanceof NumberElement && condRes.value === 0) {
                     return nil;
                 }
@@ -72,10 +72,10 @@ function evalStatement(statement, ctx) {
             }
             var newCtx = new Context(ctx);
             newCtx.forCtx.inFor = true;
-            evalBlockStatement(statement.bodyBlockStatement, newCtx);
+            await evalBlockStatement(statement.bodyBlockStatement, newCtx);
             if (newCtx.forCtx.break || newCtx.funCtx.returnElement) break;
             if (statement.stepAstNode) {
-                evalExpression(statement.stepAstNode, ctx);
+                await evalExpression(statement.stepAstNode, ctx);
             }
         }
     } else if (statement instanceof BreakStatement) {
@@ -83,20 +83,20 @@ function evalStatement(statement, ctx) {
     } else if (statement instanceof ContinueStatement) {
         ctx.setContinue();
     } else if (statement instanceof ThrowStatement) { 
-        var err = evalExpression(statement.valueAstNode, ctx);
+        var err = await evalExpression(statement.valueAstNode, ctx);
         err.pushStack({functionName : ctx.getFunctionName(), position: `${statement.token.line}:${statement.token.pos}`});
         var jsErr = new RuntimeError(err.get("msg").toNative(), null, err);
         throw jsErr
     } else if (statement instanceof TryCatchStatement) {
         try {
-            return evalBlockStatement(statement.tryBlockStatement, new Context(ctx));
+            return await evalBlockStatement(statement.tryBlockStatement, new Context(ctx));
         } catch(e) {
             if (e instanceof RuntimeError) {
                 var catchCtx = new Context(ctx);
                 // try-catch的没机会上翻到函数定义的ctx了，所以主动设置
                 e.element.updateFunctionName(ctx.getFunctionName());
                 catchCtx.set(statement.catchParamIdentifierAstNode.toString(), e.element);
-                evalBlockStatement(statement.catchBlockStatement, catchCtx);
+                await evalBlockStatement(statement.catchBlockStatement, catchCtx);
             } else {
                 throw e; //未知异常，可能是程序bug了
             }
@@ -114,11 +114,14 @@ function evalStatement(statement, ctx) {
         var className = statement.nameIdentifierAstNode.toString();
         var methods = new Map();
         if (statement.methods) {
-            statement.methods.forEach((v, k)=> {
-                var func = evalExpression(v, ctx);
+            const promises = [];
+            statement.methods.forEach(async (v, k)=> {
+                var func = await evalExpression(v, ctx);
                 if (!(func instanceof FunctionElement)) throw new RuntimeError("method " + k.toString() + " must be a function");
-                methods.set(k.toString(), evalExpression(v, ctx));
+                methods.set(k.toString(), func);
+                promises.push(Promise.resolve(func));
             });
+            await Promise.all(promises);
         }
         // 在语法分析中，我们已经把类中的字段赋值的语法糖写法，转为了在constructor中赋值，所以类中只有方法。
         ctx.set(className, new ProtoElement(className, parent, methods))
@@ -127,14 +130,14 @@ function evalStatement(statement, ctx) {
     return nil;
 }
 
-export function evalBlockStatement(blockStatement, ctx) {
-    return evalStatements(blockStatement.statements, ctx);
+export async function evalBlockStatement(blockStatement, ctx) {
+    return await evalStatements(blockStatement.statements, ctx);
 }
 
-function evalVarStatement(varStatement, ctx) {
+async function evalVarStatement(varStatement, ctx) {
     if (varStatement instanceof VarStatement) {
         // 对等号之后的表达式求值
-        var value = evalExpression(varStatement.valueAstNode, ctx);
+        var value = await evalExpression(varStatement.valueAstNode, ctx);
         if (value instanceof NumberElement) {
             value = new NumberElement(value.toNative());
         }
@@ -142,9 +145,10 @@ function evalVarStatement(varStatement, ctx) {
         // 将变量名和对应的值set到一个全局的map中
         ctx.set(name, value);
     }
+    return nil;
 }
 
-function evalExpression(exp, ctx) {
+async function evalExpression(exp, ctx) {
     // 基础数据类型
     if (exp instanceof NumberAstNode) {
         return new NumberElement(exp.toString());
@@ -179,19 +183,21 @@ function evalExpression(exp, ctx) {
     } 
     // 数组声明 [1,2,3,"a"]，分别对每个item 求值，整合成数组即可
     else if (exp instanceof ArrayDeclarationAstNode) {
-        return new ArrayElement(exp.items.map(item => evalExpression(item, ctx)));
+        return new ArrayElement(await Promise.all(exp.items.map(async item => await evalExpression(item, ctx))));
     } 
     // 分组，直接求里面的表达式即可
     else if (exp instanceof GroupAstNode) {
-        return evalExpression(exp.exp, ctx);
+        return await evalExpression(exp.exp, ctx);
     } 
     // 对象声明的节点 {a:1, b: 2, c: {a : 3}}，对于每个key直接按toString求值，value则是递归表达式求值
     // 注意这里声明了一个普通的Element，在map上追加了kv
     else if (exp instanceof MapObjectDeclarationAstNode) {
         var res = new Element("nomalMap");
-        exp.pairs.forEach(item => {
-            var v = evalExpression(item.value, ctx);
+        const promises = []
+        exp.pairs.forEach(async item => {
+            var v = await evalExpression(item.value, ctx);
             res.set(item.key.toString(), v);
+            promises.push(Promise.resolve(v));
         });
         return res;
     }
@@ -212,27 +218,27 @@ function evalExpression(exp, ctx) {
             fname = funcExpression.toString();
             // 注入一个print函数，来辅助调试
             if (fname == 'print') {
-                console.log(...(exp.args.map((arg) => evalExpression(arg, ctx).toNative())));
+                console.log(...await Promise.all((exp.args.map(async (arg) => (await evalExpression(arg, ctx)).toNative()))));
                 return nil;
             }
             if (fname == 'error') {
                 if (exp.args.length == 0) {
                     throw new RuntimeError("error() takes at least 1 argument",`${exp.token.line}:${exp.token.pos}`);
                 }
-                var msg = evalExpression(exp.args[0], ctx);
+                var msg = await evalExpression(exp.args[0], ctx);
                 if (!(msg instanceof StringElement)) {
                     throw new RuntimeError("msg should be a String",`${exp.token.line}:${exp.token.pos}`);
                 }
                 return new ErrorElement(msg.toNative());
             }
-            funcElement = evalExpression(funcExpression, ctx);
+            funcElement = await evalExpression(funcExpression, ctx);
         } 
         // 对象方法
         else if (funcExpression instanceof InfixOperatorAstNode) {
             // xx.method() => 先对xx求值，结果赋值给_this；然后找到method这个functionElement
             if ((funcExpression.op.type === LEX.POINT && funcExpression.right instanceof IdentifierAstNode) ||
             (funcExpression.op.type === LEX.LBRACKET && funcExpression.right instanceof StringAstNode)) {
-                _this = evalExpression(funcExpression.left, ctx)
+                _this = await evalExpression(funcExpression.left, ctx)
                 funcElement = _this.get(funcExpression.right.toString());
                 fname = funcExpression.right.toString();
                 var curClsPro = _this.$$pro$$;
@@ -247,14 +253,14 @@ function evalExpression(exp, ctx) {
         }
         // 其他形式，例如 "b()()",函数的返回值也是个函数，直接去调用
         if (funcElement == nil) {
-            funcElement = evalExpression(funcExpression, ctx);
+            funcElement = await evalExpression(funcExpression, ctx);
         } 
         if (!fname) {
             fname = "<anonymous>"
         }
         
         if (funcElement instanceof FunctionElement) {
-            return funcElement.call(fname, exp.args.map((arg) => evalExpression(arg, ctx)), _this, _super, exp);
+            return await funcElement.call(fname, await Promise.all(exp.args.map(async (arg) => await evalExpression(arg, ctx))), _this, _super, exp);
         } else if (funcExpression.right && funcExpression.right.toString() == "constructor") {
             // 默认构造方法，啥也不做
             return nil;
@@ -265,7 +271,7 @@ function evalExpression(exp, ctx) {
     // new对象
     else if (exp instanceof NewAstNode) {
         var className = exp.clsIdentifierAstNode.toString();
-        var args = exp.args.map((arg) => evalExpression(arg, ctx));
+        var args = await Promise.all(exp.args.map(async (arg) => await evalExpression(arg, ctx)));
         var clsElement = ctx.get(className);
         if (!(clsElement instanceof ProtoElement)) throw new RuntimeError(`${className} is not a class`);
         // 1 创建空对象
@@ -281,15 +287,15 @@ function evalExpression(exp, ctx) {
         if (clsElement.get("constructor") && clsElement.get("constructor") != nil) {
             if (!(clsElement.get("constructor") instanceof FunctionElement)) throw new RuntimeError(`${className}.constructor is not a function`); 
             // 运行构造方法，这里用到了call方法的第三第四个参数分别为this和super的指向
-            clsElement.get("constructor").call("constructor", args, _this, _super, exp);
+            await clsElement.get("constructor").call("constructor", args, _this, _super, exp);
         }
         return _this;
     }
     return nil;
 }
 // 前缀运算符节点求值 + - ! ~
-function evalPrefixOperator(prefixOperatorAstNode, ctx) {
-    var right = evalExpression(prefixOperatorAstNode.right, ctx);
+async function evalPrefixOperator(prefixOperatorAstNode, ctx) {
+    var right = await evalExpression(prefixOperatorAstNode.right, ctx);
     switch (prefixOperatorAstNode.op.type) {
         case LEX.PLUS:
             if (right instanceof NumberElement) {
@@ -313,7 +319,7 @@ function evalPrefixOperator(prefixOperatorAstNode, ctx) {
                 return trueElement;
             }
             return falseElement;
-        case LEX.BIT_NOT:
+        case LEX.BNOT:
             if (right instanceof NumberElement) {
                 right.value = ~right.value;
                 return right;
@@ -322,7 +328,7 @@ function evalPrefixOperator(prefixOperatorAstNode, ctx) {
             }
         case LEX.INCREMENT:
             if (checkSelfOps(prefixOperatorAstNode.right)) {
-                var item = evalExpression(prefixOperatorAstNode.right, ctx);
+                var item = await evalExpression(prefixOperatorAstNode.right, ctx);
                 if (item instanceof NumberElement) {
                     item.value++;
                     return item;
@@ -331,7 +337,7 @@ function evalPrefixOperator(prefixOperatorAstNode, ctx) {
             throw new RuntimeError("++ should only used with number variable", `${prefixOperatorAstNode.op.line}:${prefixOperatorAstNode.op.pos}`);
         case LEX.DECREMENT:
             if (checkSelfOps(prefixOperatorAstNode.right)) {
-                var item = evalExpression(prefixOperatorAstNode.right, ctx);
+                var item = await evalExpression(prefixOperatorAstNode.right, ctx);
                 if (item instanceof NumberElement) {
                     item.value--;
                     return item;
@@ -344,9 +350,9 @@ function evalPrefixOperator(prefixOperatorAstNode, ctx) {
 }
 
 // 后缀运算符节点求值 ++ --
-function evalPostfixOperator(postfixOperatorAstNode, ctx) {
+async function evalPostfixOperator(postfixOperatorAstNode, ctx) {
     if (checkSelfOps(postfixOperatorAstNode.left)) {
-        var left = evalExpression(postfixOperatorAstNode.left, ctx);
+        var left = await evalExpression(postfixOperatorAstNode.left, ctx);
         if (left instanceof NumberElement) {
             // 需要返回一个新的NumberElement对象保持原来的value，原来的对象的value+1
             switch (postfixOperatorAstNode.op.type) {
@@ -371,12 +377,12 @@ function checkSelfOps(node) {
 }
 
 // 中缀运算符节点求值
-function evalInfixOperator(infixOperatorAstNode, ctx) {
+async function evalInfixOperator(infixOperatorAstNode, ctx) {
     switch (infixOperatorAstNode.op.type) {
         // 基础操作符
         case LEX.PLUS:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return new NumberElement(l.value + r.value);
             }
@@ -385,78 +391,78 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.MINUS:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return new NumberElement(l.value - r.value);
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.MULTIPLY:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return new NumberElement(l.value * r.value);
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.DIVIDE:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return new NumberElement(l.value / r.value);
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.MODULUS:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return new NumberElement(l.value % r.value);
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.BSHR:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return new NumberElement(l.value >> r.value);
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.BSHL:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return new NumberElement(l.value << r.value);
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.LT:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return l.value < r.value ? trueElement : falseElement;
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.GT:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return l.value > r.value ? trueElement : falseElement;
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.LTE:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return l.value <= r.value ? trueElement : falseElement;
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.GTE:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return l.value >= r.value ? trueElement : falseElement;
             }
             throw new RuntimeError(`Invalid infix operator ${infixOperatorAstNode.op.type} for ${l.type} and ${r.type}`, `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.EQ:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return l.value == r.value ? trueElement : falseElement;
             }
@@ -465,8 +471,8 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
             }
             return l == r ? trueElement : falseElement;
         case LEX.NEQ:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && r instanceof NumberElement) {
                 return l.value != r.value ? trueElement : falseElement;
             }
@@ -475,8 +481,8 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
             }
             return l != r ? trueElement : falseElement;
         case LEX.AND:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l == nil || r == nil) {
                 return falseElement;
             }
@@ -491,8 +497,8 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
             }
             return trueElement;
         case LEX.OR:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (l instanceof NumberElement && l.value != 0) {
                 return trueElement;
             }
@@ -508,9 +514,9 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
             return falseElement;
         // 赋值运算符
         case LEX.ASSIGN:
-            var r = evalExpression(infixOperatorAstNode.right, ctx);
+            var r = await evalExpression(infixOperatorAstNode.right, ctx);
             if (infixOperatorAstNode.left instanceof IdentifierAstNode) {
-                var l = evalExpression(infixOperatorAstNode.left, ctx);
+                var l = await evalExpression(infixOperatorAstNode.left, ctx);
                 if (r instanceof NumberElement) {
                     r = new NumberElement(r.value);
                 }
@@ -520,7 +526,7 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
             // 点、index运算符，就不要求值了，直接赋值
             if (infixOperatorAstNode.left instanceof InfixOperatorAstNode) {
                 if (infixOperatorAstNode.left.op.type === LEX.POINT) {
-                    var lhost = evalExpression(infixOperatorAstNode.left.left, ctx);
+                    var lhost = await evalExpression(infixOperatorAstNode.left.left, ctx);
                     assert(lhost instanceof Map || lhost instanceof Element, "Point should used on Element", infixOperatorAstNode.left.op);
                     if (r instanceof NumberElement) {
                         r = new NumberElement(r.value);
@@ -528,10 +534,10 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
                     lhost.set(infixOperatorAstNode.left.right.toString(), r);
                     return r;
                 } else if (infixOperatorAstNode.left.op.type === LEX.LBRACKET) {
-                    var lhost = evalExpression(infixOperatorAstNode.left.left, ctx);
+                    var lhost = await evalExpression(infixOperatorAstNode.left.left, ctx);
                     assert(lhost instanceof Map || lhost instanceof Element, "[index] should used after Element", infixOperatorAstNode.left.op);
                     assert(infixOperatorAstNode.left.right instanceof IndexAstNode, "[index] should be IndexAstNode", infixOperatorAstNode.left.op);
-                    var index = evalExpression(infixOperatorAstNode.left.right.index, ctx);
+                    var index = await evalExpression(infixOperatorAstNode.left.right.index, ctx);
                     assert(index instanceof NumberElement || index instanceof StringElement, "[index] should be Number or String", infixOperatorAstNode.left.op);
                     if (r instanceof NumberElement) {
                         r = new NumberElement(r.value);
@@ -544,7 +550,7 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
         // 点运算符是获取对象的属性，而我们的属性都是存到Element的map中，所以点运算符就是取map的value，对应我们在Element中定义的get方法直接使用即可
         // 后面的LBRACKET运算符也是类似的，只不过后者还支持数组或字符串索引case
         case LEX.POINT:
-            var l = evalExpression(infixOperatorAstNode.left, ctx);
+            var l = await evalExpression(infixOperatorAstNode.left, ctx);
             if (l instanceof Element || l instanceof Map) {
                 if (infixOperatorAstNode.right instanceof IdentifierAstNode) {
                     return l.get(infixOperatorAstNode.right.toString());
@@ -553,12 +559,12 @@ function evalInfixOperator(infixOperatorAstNode, ctx) {
             throw new RuntimeError(". should be after an Element", `${infixOperatorAstNode.op.line}:${infixOperatorAstNode.op.pos}`);
         case LEX.LPAREN: // 小括号运算符特指函数执行
             var functionCall = new FunctionCallAstNode(infixOperatorAstNode.token, infixOperatorAstNode.left, infixOperatorAstNode.right.args);
-            return evalExpression(functionCall, ctx);
+            return await evalExpression(functionCall, ctx);
         case LEX.LBRACKET: // 中括号运算符特指index访问
             assert(infixOperatorAstNode.right instanceof IndexAstNode, "Invalid infix operator usage for []", infixOperatorAstNode.op);
-            var index = evalExpression(infixOperatorAstNode.right.index, ctx);
+            var index = await evalExpression(infixOperatorAstNode.right.index, ctx);
             assert(index instanceof NumberElement || index instanceof StringElement, "[] operator only support number or string index", infixOperatorAstNode.op);
-            var target = evalExpression(infixOperatorAstNode.left, ctx);
+            var target = await evalExpression(infixOperatorAstNode.left, ctx);
             // 数组/字符串 [数字]
             if (index instanceof NumberElement) {
                 assert(target instanceof ArrayElement || target instanceof StringElement, "[number] operator only support array or string index", infixOperatorAstNode.op);

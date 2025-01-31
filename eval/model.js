@@ -150,7 +150,7 @@ export class FunctionElement extends Element {
     }
 
     // name: string, args: Element[], _this: Element, _super: Element, exp: 打印异常堆栈相关
-    call(name, args, _this, _super, exp) {
+    async call(name, args, _this, _super, exp) {
         // 允许长度不匹配和js一样灵活
         // if (args.length != this.params.length) {
         //     throw new RuntimeError(`function ${name+" "}call error: args count not match`);
@@ -167,7 +167,7 @@ export class FunctionElement extends Element {
             newCtx.set(param, args[index] ? args[index] : nil);
         });
         try {
-            evalBlockStatement(this.body, newCtx);
+            await evalBlockStatement(this.body, newCtx);
         } catch (e) {
             if (e instanceof RuntimeError) {
                 if (e.element instanceof ErrorElement) {
@@ -230,13 +230,14 @@ export class NativeFunctionElement extends FunctionElement {
         this.jsFunction = jsFunction;
     }
     // args : NumberElement / BooleanElement / StringElement / NullElement
-    call(name, args, _this, _super, ctx) {
+    async call(name, args, _this, _super, ctx) {
         try {
             // 直接把参数转换成js对象，然后调用jsFunction
             var nativeArgs = args.map(e => e.toNative());
 
+            // console.debug(`调用native方法${name}`, this.jsFunction)
             // 注意这里的_this还是原Element，没有转换成js对象。因为像array的push操作需要修改的是_this的
-            var res = this.jsFunction.apply(_this, nativeArgs);
+            var res = await this.jsFunction.apply(_this, nativeArgs);
 
             // 返回值也需要是element，道理与_this一样，转换会导致引用类型变化
             return res ? res : nil;

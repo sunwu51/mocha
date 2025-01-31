@@ -7,12 +7,12 @@ import { MochaError } from './common/error.js';
 import { getBuildInCtx } from './sdk/util.js';
 import readline from 'readline';
 
-function evaluate(input, ctx = getBuildInCtx()) {
+async function evaluate(input, ctx = getBuildInCtx()) {
     var tokens = lex(input);
     // console.log(statements)
     var statements = new Parser(tokens).parse();
     // statements.forEach(statement => console.log(statement.toString()))
-    return evalStatements(statements, ctx, false);
+    return await evalStatements(statements, ctx, false);
 }
 // 俩参数第二个参数是文件
 if (process.argv.length >= 3) {
@@ -28,11 +28,11 @@ if (process.argv.length >= 3) {
     });
 
     const ctx = getBuildInCtx();
-    function play() {
+    async function play() {
         // 单行输入
-        rl.question('>> ', (answer) => {
+        rl.question('>> ', async (answer) => {
             try {
-                var res = evaluate(answer, ctx);
+                var res = await evaluate(answer, ctx);
                 console.log(res ? res.toString() : res);
             } catch (e) {
                 if (e instanceof MochaError) {
@@ -41,9 +41,9 @@ if (process.argv.length >= 3) {
                     throw e;
                 }
             }
-            play();
+            await play();
         });  
     }
 
-    play();
+    await play();
 }

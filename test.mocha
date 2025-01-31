@@ -189,13 +189,18 @@ print(Math.abs(-1) + Math.ceil(1.1) + Math.floor(1.1));
 print(Math.random());
 
 // File
+if ()
 print(File.readFile("./package.json"));
 File.writeFile("./test.txt", "Hello World\n");
 File.appendFile("./test.txt", "FooBar\n");
 
 // Http
-var content = Http.request("GET", "https://test.xiaogenban1993.com", {});
-print(content.status, content.body);
+if (Http && Http.fetch) {
+    var content = Http.fetch("https://test.xiaogenban1993.com/uuid", {method: "GET"});
+    print(content.status, content);
+}
+
+if (Http && Http.)
 
 var loop = function(n) {
     for (var i=0; i<n; i++) {

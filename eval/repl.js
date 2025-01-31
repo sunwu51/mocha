@@ -12,12 +12,12 @@ const rl = readline.createInterface({
 });
 
 const ctx = new Context();
-function play() {
+async function play() {
     // 单行输入
-    rl.question('>> ', (answer) => {
+    rl.question('>> ', async (answer) => {
         try {
             var statements = new Parser(lex(answer)).parse();
-            var res = evalStatements(statements, ctx);
+            var res = await evalStatements(statements, ctx);
             console.log(res.toString());
         } catch (e) {
             if (e instanceof MochaError) {
@@ -26,7 +26,7 @@ function play() {
                 throw e;
             }
         }
-        play();
+        await play();
     });  
 }
 
