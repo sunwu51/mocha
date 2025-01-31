@@ -1,0 +1,69 @@
+name: BUN
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Bun
+        run: |
+          curl -fsSL https://bun.sh/install | bash
+          source ~/.bashrc
+      - name: Build
+        run: |
+          bun build --compile --target=bun-linux-x64 ./main.js   --outfile mocha-linux-x64
+          bun build --compile --target=bun-windows-x64 ./main.js --outfile mocha-win-x64.exe
+          bun build --compile --target=bun-darwin-arm64 ./main.js --outfile mocha-mac-arm64
+          bun build --compile --target=bun-darwin-x64 ./main.js   --outfile mocha-mac-x64
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: mocha-linux-x64
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: mocha-win-x64.exe
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: mocha-mac-arm64
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: mocha-mac-x64
+      
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: ["build"]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
