@@ -24,22 +24,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: artifacts
-          path: mocha-linux-x64
-      - name: Upload Artifacts2
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifacts
-          path: mocha-win-x64.exe
-      - name: Upload Artifacts3
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifacts
-          path: mocha-mac-arm64
-      - name: Upload Artifacts4
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifacts
-          path: mocha-mac-x64
+          path: |
+            mocha-linux-x64
+            mocha-win-x64.exe
+            mocha-mac-arm64
+            mocha-mac-x64
       
   release:
     if: startsWith(github.ref, 'refs/tags/')
