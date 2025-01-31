@@ -24,22 +24,22 @@ jobs:
           bun build --compile --target=bun-darwin-arm64 ./main.js --outfile mocha-mac-arm64
           bun build --compile --target=bun-darwin-x64 ./main.js   --outfile mocha-mac-x64
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: artifacts
           path: mocha-linux-x64
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: artifacts
           path: mocha-win-x64.exe
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: artifacts
           path: mocha-mac-arm64
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: artifacts
           path: mocha-mac-x64
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
