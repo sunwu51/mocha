@@ -20,22 +20,22 @@ jobs:
           ~/.bun/bin/bun build --compile --target=bun-windows-x64 ./main.js --outfile mocha-win-x64.exe
           ~/.bun/bin/bun build --compile --target=bun-darwin-arm64 ./main.js --outfile mocha-mac-arm64
           ~/.bun/bin/bun build --compile --target=bun-darwin-x64 ./main.js   --outfile mocha-mac-x64
-      - name: Upload Artifacts
+      - name: Upload Artifacts1
         uses: actions/upload-artifact@v4
         with:
           name: artifacts
           path: mocha-linux-x64
-      - name: Upload Artifacts
+      - name: Upload Artifacts2
         uses: actions/upload-artifact@v4
         with:
           name: artifacts
           path: mocha-win-x64.exe
-      - name: Upload Artifacts
+      - name: Upload Artifacts3
         uses: actions/upload-artifact@v4
         with:
           name: artifacts
           path: mocha-mac-arm64
-      - name: Upload Artifacts
+      - name: Upload Artifacts4
         uses: actions/upload-artifact@v4
         with:
           name: artifacts
