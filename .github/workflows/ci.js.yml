@@ -13,12 +13,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install Bun
+      - name: Install Bun And Build
         run: |
           curl -fsSL https://bun.sh/install | bash
           source ~/.bashrc
-      - name: Build
-        run: |
           bun build --compile --target=bun-linux-x64 ./main.js   --outfile mocha-linux-x64
           bun build --compile --target=bun-windows-x64 ./main.js --outfile mocha-win-x64.exe
           bun build --compile --target=bun-darwin-arm64 ./main.js --outfile mocha-mac-arm64
