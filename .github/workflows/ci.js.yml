@@ -16,11 +16,10 @@ jobs:
       - name: Install Bun And Build
         run: |
           curl -fsSL https://bun.sh/install | bash
-          source ~/.bashrc
-          bun build --compile --target=bun-linux-x64 ./main.js   --outfile mocha-linux-x64
-          bun build --compile --target=bun-windows-x64 ./main.js --outfile mocha-win-x64.exe
-          bun build --compile --target=bun-darwin-arm64 ./main.js --outfile mocha-mac-arm64
-          bun build --compile --target=bun-darwin-x64 ./main.js   --outfile mocha-mac-x64
+          ~/.bun/bin/bun build --compile --target=bun-linux-x64 ./main.js   --outfile mocha-linux-x64
+          ~/.bun/bin/bun build --compile --target=bun-windows-x64 ./main.js --outfile mocha-win-x64.exe
+          ~/.bun/bin/bun build --compile --target=bun-darwin-arm64 ./main.js --outfile mocha-mac-arm64
+          ~/.bun/bin/bun build --compile --target=bun-darwin-x64 ./main.js   --outfile mocha-mac-x64
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
