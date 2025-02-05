@@ -77,7 +77,7 @@ export class ClassStatement extends Statement {
     toString() {
         var propStr = [];
         this.methods.forEach((v, k)=> {
-            propStr.push(`${k.toString()}${v ? ' = ' + v.toString() : ''};`)
+            propStr.push(`${k.toString()}${v ? v.toString().substring('function'.length) : ''}`)
         });
         return `class ${this.nameIdentifierAstNode.toString()} ${this.parentIdentifierAstNode ? 'extends ' + this.parentIdentifierAstNode.toString() : ''}{
     ${propStr.join("\n")}

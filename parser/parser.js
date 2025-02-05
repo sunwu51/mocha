@@ -161,16 +161,41 @@ export class Parser {
         }
 
         this.assertTokenType(this.cursor++, LEX.LBRACE, "class statement need a LBRACE follow class name");   // {
-        // 类中的属性都是 ident;或ident=expr;形式
+        // 类中的属性都是 ident;或ident=expr;或ident(params){}形式
         var fields = [];
         var methods = new Map();
         var constr = null;
         while (tokens[this.cursor].type != LEX.RBRACE) {                                                       // k1 = v1...
             this.assertTokenType(this.cursor, LEX.IDENTIFIER, "class statement need a IDENTIFIER for property name");
+
+            // ident() {} 为方法，其他均为字段
+            if (this.tokens[this.cursor + 1].type == LEX.LPAREN) {
+                // 这里逻辑和函数解析的一致：先解析入参
+                var startToken = tokens[this.cursor];
+                var name = startToken.value;
+                this.assertTokenType(++this.cursor, LEX.LPAREN, "method need a lparen");
+                this.cursor++;
+                var params = [];
+                while (tokens[this.cursor].type != LEX.RPAREN) {
+                    this.assertTokenType(this.cursor, LEX.IDENTIFIER);
+                    params.push(new IdentifierAstNode(tokens[this.cursor++]));
+                    if (tokens[this.cursor].type == LEX.COMMA) {
+                        this.cursor++;
+                    }
+                }
+                this.cursor++;
+                var body = this.parseBlockStatement();
+                var node = new FunctionDeclarationAstNode(startToken, params, body);
+                methods.set(name, node);
+                if (name == "constructor") constr = node;
+                if (this.tokens[this.cursor].type == LEX.SEMICOLON) this.cursor++;
+                continue;
+            }
             // class A {age =10;} 是语法糖
             // 转换成 class A {constructor = function() {this.age = 10;}}
             var assign = this.parseExpression();
             if (assign instanceof IdentifierAstNode) {
+                if (assign.token.value === 'constructor') throw new ParseError("constructor should be a method")
                 var temp = new InfixOperatorAstNode(new LEX.Token(LEX.ASSIGN, "=", 0, 0));
                 temp.left = assign;
                 temp.right = new NullAstNode(new LEX.Token(LEX.NULL, "null", 0, 0));
@@ -178,22 +203,14 @@ export class Parser {
             }
             // 把字段的赋值 age=1 改为 this.age = 1
             if (assign instanceof InfixOperatorAstNode && assign.op.type == LEX.ASSIGN) {
-                if (!(assign.right instanceof FunctionDeclarationAstNode)) {
-                    // constructor不能是字段
-                    if (assign.left.token.value  === 'constructor') {
-                        throw new ParseError("constructor should be a funciton", tokens, this.cursor);
-                    }
-                    var point = new InfixOperatorAstNode(new LEX.Token(LEX.POINT, ".", 0, 0));
-                    point.left = new IdentifierAstNode(new LEX.Token(LEX.IDENTIFIER, "this", 0, 0));
-                    point.right = assign.left;
-                    assign.left = point;
-                    fields.push(assign);
-                } else {
-                    if (assign.left.token.value === 'constructor') {
-                        constr = assign.right;
-                    }
-                    methods.set(assign.left, assign.right);
+                if (assign.left.token.value  === 'constructor') {
+                    throw new ParseError("constructor should be a method", tokens, this.cursor);
                 }
+                var point = new InfixOperatorAstNode(new LEX.Token(LEX.POINT, ".", 0, 0));
+                point.left = new IdentifierAstNode(new LEX.Token(LEX.IDENTIFIER, "this", 0, 0));
+                point.right = assign.left;
+                assign.left = point;
+                fields.push(assign);
             } 
             if (tokens[this.cursor].type == LEX.SEMICOLON) {
                 this.cursor++;
@@ -207,7 +224,7 @@ export class Parser {
             var callSuper = new FunctionCallAstNode(new LEX.Token(), temp, []);
             var blockStatement = new BlockStatement(new LEX.Token());
             blockStatement.statements = [new ExpressionStatement(new LEX.Token(), callSuper)];
-            constr = new FunctionDeclarationAstNode(new LEX.Token(), []); // 空函数
+            constr = new FunctionDeclarationAstNode(startToken, []); // 空函数
             constr.body = blockStatement;
             fields.forEach(f => constr.body.statements.push(new ExpressionStatement(new LEX.Token(), f)));
         } else {
@@ -224,8 +241,7 @@ export class Parser {
             first.expression.left = temp;
             constr.body.statements = [first, ...fields.map(f => new ExpressionStatement(f.token, f)), ...constr.body.statements];
         }
-        var ct = new LEX.Token(LEX.IDENTIFIER, 'constructor', 0, 0);
-        methods.set(new IdentifierAstNode(ct), constr);
+        methods.set("constructor", constr);
         this.assertTokenType(this.cursor++, LEX.RBRACE, "class format invalid");                              // }
         return new ClassStatement(startToken, classNameIdentAstNode, parent, methods)
     }

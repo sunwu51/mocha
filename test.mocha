@@ -56,14 +56,14 @@ for (var i = 0; i < 10; i++) {
 // 7 ClassStatement
 class Person {
     age = 18;
-    constructor = function(name, age) {
+    constructor(name, age) {
         super();
         this.name = name;
         if (age) {
             this.age = age;
         }
     }
-    sayName = function() {
+    sayName(){
         print(this.name + "," + this.age);
     }
 }
@@ -93,19 +93,19 @@ function() {
 
 // 面向对象的继承与多态
 class Animal {
-    constructor = function(name) {
+    constructor(name){
         super();
         this.name = name;
     }
-    sayName = function() {
+    sayName() {
         print("My name is " + this.name);
     }
 }
 class Dog extends Animal {
-    constructor = function(name) {
+    constructor(name) {
         super(name);
     }
-    sayName = function() {
+    sayName() {
         print("My name is " + this.name + ", I'm a dog");
     }
 }
@@ -119,22 +119,22 @@ lily.sayName();
 // 类似js的处理逻辑，B.c会调用A.b，而A.b会调用this.a()，这里的this指向B对象，所以最后打印B.a
 class A {
   age = 1;
-  a=function() {
+  a() {
     print("A.a");
   }
-  b=function() {
+  b() {
     this.a();
   }
 }
 
 class B extends A{
-  a=function() {
+  a() {
     print("B.a");
   }
-  b=function() {
+  b() {
     print("B.b");
   }
-  c=function() {
+  c() {
     super.b();
   }
 }
@@ -189,7 +189,6 @@ print(Math.abs(-1) + Math.ceil(1.1) + Math.floor(1.1));
 print(Math.random());
 
 // File
-if ()
 print(File.readFile("./package.json"));
 File.writeFile("./test.txt", "Hello World\n");
 File.appendFile("./test.txt", "FooBar\n");
@@ -197,10 +196,16 @@ File.appendFile("./test.txt", "FooBar\n");
 // Http
 if (Http && Http.fetch) {
     var content = Http.fetch("https://test.xiaogenban1993.com/uuid", {method: "GET"});
-    print(content.status, content);
+    print(content.status, content.body);
 }
 
-if (Http && Http.)
+// Json
+var obj = {a: 1, b:"b", c: false, d: null, e: [1, {k: 3}]};
+
+print(obj);
+var json = null;
+print(json =Json.stringify(obj));
+print(Json.parse(json));
 
 var loop = function(n) {
     for (var i=0; i<n; i++) {
@@ -215,3 +220,18 @@ var loop = function(n) {
 };
 print("loop(5)=", loop(5));
 print("loop(2)=", loop(2));
+
+// 类中方法与函数的区别：函数是字段
+class A {
+    a = function(){print("A.field.a");}
+    a(){
+        print("A.method.a");
+    }
+}
+new A().a(); // 字段在自身，方法在原型，所以字段优先级高打印field.a
+
+class B extends A{
+    a() {print("B.a");}
+}
+
+new B().a(); // 也是打印A.field.a，因为B构造方法会调用A构造方法，A构造方法会对a字段赋值，该行为与js保持一致

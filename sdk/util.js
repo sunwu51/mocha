@@ -1,4 +1,4 @@
-import { NativeFunctionElement,ProtoElement,NumberElement,StringElement, BooleanElement, Element, nil, Context} from "../eval/model.js";
+import { NativeFunctionElement,ProtoElement,NumberElement,StringElement, falseElement, trueElement, Element, ArrayElement, nil, Context} from "../eval/model.js";
 import { RuntimeError } from "../common/error.js";
 
 var IS_NODE = typeof process !== 'undefined' && process.versions && process.versions.node;

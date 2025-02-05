@@ -3,7 +3,7 @@ import { Parser } from './parser.js';
 var tokens = LEX.lex(`
     class Person {
         age = 18;
-        constructor = function(name, age) {
+        constructor(name, age) {
             super();
             this.name = name;
         }
